@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Pencil, ExternalLink, Users, UserPlus } from 'lucide-react';
+import { X, Pencil, ExternalLink, User } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { updateReport, getReportFileUrl, deleteReport, getPatients } from '../../lib/supabase';
+import { updateReport, getReportFileUrl, deleteReport, getPatients, findPersonByName, savePatient } from '../../lib/supabase';
 import { REPORT_TYPE_COLORS } from '../../lib/constants';
 import { toast } from 'sonner';
 
@@ -14,7 +13,8 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
   const [people, setPeople] = useState([]);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isEditingPerson, setIsEditingPerson] = useState(false);
+  const [personName, setPersonName] = useState('');
 
   useEffect(() => {
     getPatients().then(setPeople).catch(console.error);
@@ -33,6 +33,14 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
       setIsDeleteDialogOpen(false);
     }
   }, [report, isOpen]);
+
+  useEffect(() => {
+    if (report && people.length > 0) {
+      const linked = people.find(p => p.id === report.patient_id);
+      setPersonName(linked ? linked.name : (report.extracted_values?.patient_info?.name || ''));
+      setIsEditingPerson(false);
+    }
+  }, [report, isOpen, people]);
 
   if (!isOpen || !report) return null;
 
@@ -89,14 +97,44 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
     }
   };
 
-  const handleLinkPerson = async (personId) => {
+  const handlePersonSave = async () => {
+    setIsEditingPerson(false);
+    const nameStr = personName.trim();
+    if (!nameStr) return;
+    
     try {
-      await updateReport(report.id, { patient_id: personId });
-      setIsPopoverOpen(false);
+      let finalId = null;
+      const match = await findPersonByName(nameStr);
+      if (match) {
+        finalId = match.id;
+      } else {
+        const newP = await savePatient({ name: nameStr });
+        finalId = newP.id;
+        setPeople(prev => [...prev, newP]);
+      }
+
+      await updateReport(report.id, {
+        patient_id: finalId,
+        extracted_values: {
+          ...report.extracted_values,
+          patient_info: {
+            ...(report.extracted_values?.patient_info || {}),
+            name: nameStr
+          }
+        }
+      });
+      
       window.dispatchEvent(new CustomEvent('refresh-timeline'));
-      toast.success("Person linked to report");
+      toast.success("Person linked");
     } catch (err) {
       toast.error("Failed to link person");
+      setPersonName(linkedPerson ? linkedPerson.name : (report.extracted_values?.patient_info?.name || ''));
+    }
+  };
+
+  const handlePersonKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.target.blur();
     }
   };
 
@@ -123,46 +161,26 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
               </span>
             )}
             
-            <div className="mt-2 ml-4 flex items-center">
-              <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-                <PopoverTrigger asChild>
-                  {report.patient_id ? (
-                    <button className="flex items-center bg-primary/10 text-primary border border-primary/20 rounded-full px-3 py-1 text-xs font-medium hover:bg-primary/20 transition-colors">
-                      <Users className="w-3 h-3 mr-1" />
-                      {linkedPerson ? linkedPerson.name : 'Unknown Person'}
-                    </button>
-                  ) : (
-                    <button className="flex items-center text-xs text-primary cursor-pointer border border-primary/20 rounded-full px-3 py-1 hover:bg-primary/5 transition-colors">
-                      <UserPlus className="w-3 h-3 mr-1" />
-                      Link to person
-                    </button>
-                  )}
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-56 p-2 bg-card border border-border shadow-md rounded-lg z-50">
-                  <div className="text-xs font-medium text-text-muted mb-2 px-2">Select a person</div>
-                  <div className="max-h-40 overflow-y-auto">
-                    {people.map(p => (
-                      <button 
-                        key={p.id}
-                        onClick={() => handleLinkPerson(p.id)}
-                        className="w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded flex items-center justify-between group"
-                      >
-                        <span className="truncate text-gray-900 group-hover:text-primary transition-colors">{p.name}</span>
-                        {p.relationship && <span className="text-[10px] text-text-muted bg-muted group-hover:bg-card px-1.5 rounded">{p.relationship}</span>}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="border-t border-border mt-2 pt-2 px-2">
-                    <button 
-                      onClick={() => { setIsPopoverOpen(false); window.location.href = '/people'; }}
-                      className="text-xs text-primary font-medium hover:underline flex items-center"
-                    >
-                      <UserPlus className="w-3 h-3 mr-1" />
-                      Create new person
-                    </button>
-                  </div>
-                </PopoverContent>
-              </Popover>
+            <div className="mt-2 ml-4 flex items-center h-6">
+              {isEditingPerson ? (
+                <input
+                  autoFocus
+                  type="text"
+                  value={personName}
+                  onChange={(e) => setPersonName(e.target.value)}
+                  onBlur={handlePersonSave}
+                  onKeyDown={handlePersonKeyDown}
+                  className="text-sm border-b border-border focus:border-focus outline-none bg-transparent w-48 text-gray-900"
+                />
+              ) : (
+                <div 
+                  onClick={() => setIsEditingPerson(true)}
+                  className="flex items-center text-sm text-text-muted cursor-pointer hover:text-primary transition-colors"
+                >
+                  <User className="w-4 h-4 mr-1.5" />
+                  {personName || 'No person linked'}
+                </div>
+              )}
             </div>
             
             {extraction.referred_by && (

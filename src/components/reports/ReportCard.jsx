@@ -43,7 +43,7 @@ export default function ReportCard({ report, onClick }) {
           <div className="text-sm font-medium text-gray-900">{dateStr}</div>
           <div className="text-xs text-text-muted mt-0.5">{report.lab_name || report.doctor_name || 'No provider listed'}</div>
           {report.extracted_values?.patient_info?.name && (
-            <div className="text-xs text-text-muted mt-0.5">Patient: {report.extracted_values.patient_info.name}</div>
+            <div className="text-xs text-text-muted mt-0.5">Person: {report.extracted_values.patient_info.name}</div>
           )}
           {report.extracted_values?.referred_by && (
             <div className="text-xs text-text-muted mt-0.5">Referred by: {report.extracted_values.referred_by}</div>

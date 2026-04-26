@@ -18,14 +18,6 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
   const [pendingFile, setPendingFile] = useState(null);
   
   const [patients, setPatients] = useState([]);
-  const [selectedPatientId, setSelectedPatientId] = useState(null);
-  const [showNewPatient, setShowNewPatient] = useState(false);
-  const [newPatientName, setNewPatientName] = useState('');
-  const [newPatientRel, setNewPatientRel] = useState('Self');
-  const [savingPatient, setSavingPatient] = useState(false);
-
-  const [autoLinkedPerson, setAutoLinkedPerson] = useState(null);
-  const [newPersonSuggestion, setNewPersonSuggestion] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -36,12 +28,6 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
       setExtractionResult(null);
       setDuplicateWarning(null);
       setPendingFile(null);
-      setSelectedPatientId(null);
-      setShowNewPatient(false);
-      setNewPatientName('');
-      setNewPatientRel('Self');
-      setAutoLinkedPerson(null);
-      setNewPersonSuggestion(null);
       
       getPatients().then(setPatients).catch(console.error);
     }
@@ -80,36 +66,10 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
       setDuplicateWarning(dupe);
       return;
     }
-    goToPatientSelection();
+    proceedWithUpload(selectedFile);
   };
 
-  const goToPatientSelection = () => {
-    setDuplicateWarning(null);
-    setStep(1.5);
-  };
-
-  const handleCreatePatient = async () => {
-    if (!newPatientName.trim()) return;
-    setSavingPatient(true);
-    try {
-      const p = await savePatient({
-        name: newPatientName,
-        relationship: newPatientRel,
-        gender: 'Prefer not to say'
-      });
-      setPatients(prev => [...prev, p]);
-      setShowNewPatient(false);
-      proceedWithUpload(pendingFile, p.id);
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to create patient');
-    } finally {
-      setSavingPatient(false);
-    }
-  };
-
-  const proceedWithUpload = async (selectedFile, patientId) => {
-    setSelectedPatientId(patientId);
+  const proceedWithUpload = async (selectedFile) => {
     setFile(selectedFile);
     setStep(1);
     setUploadStage('uploading');
@@ -125,17 +85,6 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
 
       const result = await extractReportFromPDF(selectedFile);
       clearTimeout(processingTimer);
-      
-      const extractedName = result?.patient_info?.name;
-      if (extractedName) {
-        const match = await findPersonByName(extractedName);
-        if (match) {
-          setSelectedPatientId(match.id);
-          setAutoLinkedPerson(match);
-        } else {
-          setNewPersonSuggestion(extractedName);
-        }
-      }
 
       setExtractionResult(result);
       setUploadStage(null);
@@ -151,8 +100,21 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
 
   const handleSave = async (finalData) => {
     try {
+      let computedPatientId = null;
+      const personNameStr = finalData.person_name?.trim();
+      
+      if (personNameStr) {
+        const match = await findPersonByName(personNameStr);
+        if (match) {
+          computedPatientId = match.id;
+        } else {
+          const newP = await savePatient({ name: personNameStr, relationship: 'Self', gender: 'Prefer not to say' });
+          computedPatientId = newP.id;
+        }
+      }
+
       const dbRow = {
-        patient_id: selectedPatientId,
+        patient_id: computedPatientId,
         file_url: uploadData.fileUrl,
         file_path: uploadData.filePath,
         file_name: file.name,
@@ -191,7 +153,7 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
         <DialogHeader className="p-6 pb-2 border-b border-border bg-muted/20">
           <DialogTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
-            {step === 1 ? 'Add New Report' : step === 1.5 ? 'Who is this for?' : 'Review Information'}
+            {step === 1 ? 'Add New Report' : 'Review Information'}
           </DialogTitle>
         </DialogHeader>
 
@@ -206,7 +168,7 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
                   <p className="mb-1 text-yellow-700">Previously uploaded: {duplicateWarning.report.report_date ? new Date(duplicateWarning.report.report_date).toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown Date'}</p>
                   <p className="mb-3 text-yellow-700">Type: {duplicateWarning.report.report_type ? duplicateWarning.report.report_type.replace('_', ' ') : 'Unknown'}</p>
                   <div className="flex gap-3">
-                    <button onClick={goToPatientSelection} className="px-3 py-1.5 bg-yellow-100 font-medium rounded border border-yellow-300 hover:bg-yellow-200 transition-colors">Upload Anyway</button>
+                    <button onClick={() => proceedWithUpload(pendingFile)} className="px-3 py-1.5 bg-yellow-100 font-medium rounded border border-yellow-300 hover:bg-yellow-200 transition-colors">Upload Anyway</button>
                     <button onClick={() => { setDuplicateWarning(null); setPendingFile(null); }} className="px-3 py-1.5 font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded bg-white shadow-sm transition-colors">Cancel</button>
                   </div>
                 </div>
@@ -216,7 +178,7 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-sm text-orange-800 w-full mt-4">
                   <p className="mb-3 font-medium">This file is very similar in size to "{duplicateWarning.report.file_name}" already in your timeline. Are you sure this is a different report?</p>
                   <div className="flex gap-3">
-                    <button onClick={goToPatientSelection} className="px-3 py-1.5 bg-orange-100 font-medium rounded border border-orange-300 hover:bg-orange-200 transition-colors">Yes, upload</button>
+                    <button onClick={() => proceedWithUpload(pendingFile)} className="px-3 py-1.5 bg-orange-100 font-medium rounded border border-orange-300 hover:bg-orange-200 transition-colors">Yes, upload</button>
                     <button onClick={() => { setDuplicateWarning(null); setPendingFile(null); }} className="px-3 py-1.5 font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded bg-white shadow-sm transition-colors">Cancel</button>
                   </div>
                 </div>
@@ -248,77 +210,13 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
             </div>
           )}
 
-          {step === 1.5 && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Who is this report for?</h3>
-              <div className="flex flex-wrap gap-2 mb-6">
-                {patients.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => proceedWithUpload(pendingFile, p.id)}
-                    className="bg-card border border-border hover:border-primary/50 text-gray-700 px-4 py-2 rounded-full text-sm font-medium transition-colors"
-                  >
-                    {p.name}
-                  </button>
-                ))}
-                
-                <button
-                  onClick={() => setShowNewPatient(true)}
-                  className="bg-muted text-text-muted border border-border border-dashed hover:border-primary/50 hover:text-primary px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" /> New Patient
-                </button>
-              </div>
-
-              {showNewPatient && (
-                <div className="bg-muted/30 border border-border rounded-lg p-4 animate-in fade-in zoom-in-95 duration-200">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">Name</label>
-                      <input type="text" value={newPatientName} onChange={e => setNewPatientName(e.target.value)} placeholder="Patient name" className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-focus focus:ring-1 focus:ring-primary focus:outline-none bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">Relationship</label>
-                      <select value={newPatientRel} onChange={e => setNewPatientRel(e.target.value)} className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-focus focus:ring-1 focus:ring-primary focus:outline-none bg-white">
-                        <option>Self</option>
-                        <option>Partner</option>
-                        <option>Mother</option>
-                        <option>Father</option>
-                        <option>Child</option>
-                        <option>Sibling</option>
-                        <option>Other</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowNewPatient(false)} className="text-xs font-medium text-text-muted hover:text-gray-900 px-3 py-1.5 transition-colors">Cancel</button>
-                    <button onClick={handleCreatePatient} disabled={savingPatient || !newPatientName.trim()} className="bg-primary text-white text-xs font-medium px-4 py-1.5 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50">
-                      {savingPatient ? 'Saving...' : 'Save & Continue'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {step === 2 && extractionResult && (
             <ExtractionPreview 
               extraction={extractionResult}
               confidence={extractionResult.extraction_failed ? 'failed' : (extractionResult.extraction_confidence || 'low')}
               confidenceReason={extractionResult.confidence_reason}
-              autoLinkedPerson={autoLinkedPerson}
-              newPersonSuggestion={newPersonSuggestion}
               onSave={handleSave}
               onCancel={onClose}
-              onChangeLink={() => setStep(1.5)}
-              onCreateSuggested={async () => {
-                 const p = await savePatient({ name: newPersonSuggestion, relationship: 'Self', gender: 'Prefer not to say' });
-                 setSelectedPatientId(p.id);
-                 setAutoLinkedPerson(p);
-                 setNewPersonSuggestion(null);
-                 toast.success('Person created and linked');
-              }}
-              onSkipSuggestion={() => setNewPersonSuggestion(null)}
             />
           )}
         </div>

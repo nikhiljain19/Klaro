@@ -5,7 +5,7 @@ import FilterBar from '../components/timeline/FilterBar';
 import TimelineList from '../components/timeline/TimelineList';
 import ReportDetailPanel from '../components/reports/ReportDetailPanel';
 
-export default function Timeline({ reports = [], isLoading = false, fetchReports, onReportDeleted }) {
+export default function Timeline({ reports = [], people = [], isLoading = false, fetchReports, onReportDeleted }) {
   const [activeType, setActiveType] = useState('all');
   const [activeDateRange, setActiveDateRange] = useState('all');
   const [activePatient, setActivePatient] = useState('all');
@@ -38,15 +38,10 @@ export default function Timeline({ reports = [], isLoading = false, fetchReports
         if (activeDateRange === '1y') dateMatch = diffMonths <= 12;
       }
 
-      // Patient filter
+      // Person filter
       let patientMatch = true;
       if (activePatient !== 'all') {
-        const pName = r.extracted_values?.patient_info?.name;
-        if (!pName) {
-          patientMatch = false;
-        } else {
-          patientMatch = pName.toLowerCase().trim() === activePatient.toLowerCase().trim();
-        }
+        patientMatch = r.patient_id === activePatient;
       }
 
       return typeMatch && dateMatch && patientMatch;
@@ -67,6 +62,7 @@ export default function Timeline({ reports = [], isLoading = false, fetchReports
       <div className="sticky top-[68px] z-20 bg-surface pb-4 pt-2 -mx-4 px-4 md:-mx-6 md:px-6">
         <FilterBar 
           reports={reports}
+          people={people}
           activeType={activeType}
           activeDateRange={activeDateRange}
           activePatient={activePatient}

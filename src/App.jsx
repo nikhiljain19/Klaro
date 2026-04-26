@@ -10,13 +10,14 @@ import ResetPassword from './pages/ResetPassword';
 import People from './pages/People';
 import { Toaster } from '@/components/ui/sonner';
 import UploadModal from './components/upload/UploadModal';
-import { getReports } from './lib/supabase';
+import { getReports, getPatients } from './lib/supabase';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 
 function AppContent() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [reports, setReports] = useState([]);
+  const [people, setPeople] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
 
@@ -24,8 +25,12 @@ function AppContent() {
     if (!user) return;
     setIsLoading(true);
     try {
-      const data = await getReports();
-      setReports(data || []);
+      const [reportsData, peopleData] = await Promise.all([
+        getReports(),
+        getPatients()
+      ]);
+      setReports(reportsData || []);
+      setPeople(peopleData || []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -38,6 +43,7 @@ function AppContent() {
       fetchReports();
     } else {
       setReports([]);
+      setPeople([]);
     }
   }, [user]);
 
@@ -53,7 +59,7 @@ function AppContent() {
       <div className="min-h-screen bg-surface">
         {user && <Header onOpenUpload={() => setIsUploadOpen(true)} onSignOut={handleSignOutClear} />}
         <Routes>
-          <Route path="/" element={<ProtectedRoute><Timeline reports={reports} isLoading={isLoading} fetchReports={fetchReports} onReportDeleted={handleReportDeleted} /></ProtectedRoute>} />
+          <Route path="/" element={<ProtectedRoute><Timeline reports={reports} people={people} isLoading={isLoading} fetchReports={fetchReports} onReportDeleted={handleReportDeleted} /></ProtectedRoute>} />
           <Route path="/ask" element={<ProtectedRoute><Ask /></ProtectedRoute>} />
           <Route path="/people" element={<ProtectedRoute><People /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />

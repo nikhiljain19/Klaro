@@ -17,6 +17,7 @@ const DATE_OPTIONS = [
 
 export default function FilterBar({ 
   reports = [],
+  people = [],
   activeType, 
   activeDateRange, 
   activePatient = 'all',
@@ -30,29 +31,12 @@ export default function FilterBar({
   const isPatientActive = activePatient !== "all";
   const hasActiveFilters = isTypeActive || isDateActive || isPatientActive;
 
-  const toTitleCase = (str) =>
-    str.trim()
-      .toLowerCase()
-      .replace(/\b\w/g, c => c.toUpperCase());
-
-  const uniquePatients = reports
-    .map(r => r.extracted_values?.patient_info?.name)
-    .filter(Boolean)
-    .reduce((acc, name) => {
-      const normalised = toTitleCase(name);
-      if (!acc.find(n => n.toLowerCase() === normalised.toLowerCase())) {
-        acc.push(normalised);
-      }
-      return acc;
-    }, [])
-    .sort();
-
   return (
     <div className="flex flex-col gap-3">
-      {/* Patient Filter Row */}
-      {uniquePatients.length >= 2 && (
+      {/* People Filter Row */}
+      {people.length > 0 && (
         <div className="flex gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-hide pb-2 border-b border-border">
-          <span className="text-xs font-medium uppercase tracking-wide text-text-muted mr-3">Patient:</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-text-muted mr-3">People:</span>
           <button
             onClick={() => onPatientChange('all')}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 cursor-pointer ${
@@ -61,22 +45,22 @@ export default function FilterBar({
                 : 'bg-card border border-border text-text-muted hover:border-primary hover:text-primary'
             }`}
           >
-            All Patients
+            Everyone
           </button>
           
-          {uniquePatients.map(name => {
-            const isActive = activePatient === name;
+          {people.map(person => {
+            const isActive = activePatient === person.id;
             return (
               <button
-                key={name}
-                onClick={() => onPatientChange(name)}
+                key={person.id}
+                onClick={() => onPatientChange(person.id)}
                 className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 cursor-pointer ${
                   isActive 
                     ? 'bg-primary text-white border border-primary' 
                     : 'bg-card border border-border text-text-muted hover:border-primary hover:text-primary'
                 }`}
               >
-                {name}
+                {person.name}
               </button>
             );
           })}
@@ -146,7 +130,7 @@ export default function FilterBar({
           )}
           {isPatientActive && (
             <div className="bg-muted border border-border rounded-full px-3 py-1 text-xs text-text-muted flex items-center">
-              Patient: {activePatient}
+              Person: {people.find(p => p.id === activePatient)?.name || 'Unknown'}
               <button onClick={() => onPatientChange('all')} className="ml-1 hover:text-gray-900"><X className="w-3 h-3" /></button>
             </div>
           )}
