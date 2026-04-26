@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { buildExtractionPrompt } from '../prompts/extraction'
+import { buildReasoningPrompt } from '../prompts/reasoning'
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '')
 
@@ -53,4 +54,98 @@ export async function extractReportFromPDF(file) {
       confidence_reason: "JSON parse failed: " + error.message
     }
   }
+}
+
+export async function askQuestion(
+  question,
+  personId,
+  allReports,
+  allPeople,
+  previousQA = []
+) {
+  const person = personId
+    ? allPeople.find(p => p.id === personId)
+    : null
+
+  const relevantReports = personId
+    ? allReports.filter(
+        r => r.patient_id === personId)
+    : allReports
+
+  const sortedReports = [...relevantReports]
+    .sort((a, b) =>
+      new Date(b.report_date || 0) -
+      new Date(a.report_date || 0)
+    )
+
+  const patientContext = {
+    person: person || null,
+    reports: sortedReports,
+    previousQA: previousQA
+  }
+
+  const { systemPrompt, userMessage } =
+    buildReasoningPrompt(
+      patientContext,
+      question,
+      previousQA
+    )
+
+  const result = await reasoningModel
+    .generateContentStream({
+      systemInstruction: systemPrompt,
+      contents: [{
+        role: 'user',
+        parts: [{ text: userMessage }]
+      }]
+    })
+
+  return result.stream
+}
+
+export async function askQuestionSimple(
+  question,
+  personId,
+  allReports,
+  allPeople,
+  previousQA = []
+) {
+  const person = personId
+    ? allPeople.find(p => p.id === personId)
+    : null
+
+  const relevantReports = personId
+    ? allReports.filter(
+        r => r.patient_id === personId)
+    : allReports
+
+  const sortedReports = [...relevantReports]
+    .sort((a, b) =>
+      new Date(b.report_date || 0) -
+      new Date(a.report_date || 0)
+    )
+
+  const patientContext = {
+    person: person || null,
+    reports: sortedReports,
+    previousQA: previousQA
+  }
+
+  const { systemPrompt, userMessage } =
+    buildReasoningPrompt(
+      patientContext,
+      question,
+      previousQA
+    )
+
+  const result = await reasoningModel
+    .generateContent({
+      systemInstruction: systemPrompt,
+      contents: [{
+        role: 'user',
+        parts: [{ text: userMessage }]
+      }]
+    })
+
+  return result.response.text()
 }

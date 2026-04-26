@@ -60,7 +60,7 @@ function AppContent() {
         {user && <Header onOpenUpload={() => setIsUploadOpen(true)} onSignOut={handleSignOutClear} />}
         <Routes>
           <Route path="/" element={<ProtectedRoute><Timeline reports={reports} people={people} isLoading={isLoading} fetchReports={fetchReports} onReportDeleted={handleReportDeleted} /></ProtectedRoute>} />
-          <Route path="/ask" element={<ProtectedRoute><Ask /></ProtectedRoute>} />
+          <Route path="/ask" element={<ProtectedRoute><Ask reports={reports} people={people} /></ProtectedRoute>} />
           <Route path="/people" element={<ProtectedRoute><People /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />

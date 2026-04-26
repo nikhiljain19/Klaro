@@ -206,3 +206,11 @@ export async function deleteReport(id, filePath) {
     .eq('id', id)
   if (error) throw error
 }
+
+export async function saveFeedback(data) {
+  const user = await getCurrentUser()
+  const { error } = await supabase
+    .from('feedback')
+    .insert([{ ...data, user_id: user.id }])
+  if (error) throw error
+}
