@@ -67,6 +67,47 @@ export async function getReports() {
   return data
 }
 
+export async function getPatients() {
+  const user = await getCurrentUser()
+  const { data, error } = await supabase
+    .from('patients')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function savePatient(data) {
+  const user = await getCurrentUser()
+  const { data: saved, error } = await supabase
+    .from('patients')
+    .insert([{ ...data, user_id: user.id }])
+    .select()
+    .single()
+  if (error) throw error
+  return saved
+}
+
+export async function updatePatient(id, data) {
+  const { data: updated, error } = await supabase
+    .from('patients')
+    .update(data)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return updated
+}
+
+export async function deletePatient(id) {
+  const { error } = await supabase
+    .from('patients')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
 export async function saveReport(data) {
   const user = await getCurrentUser()
   const { data: savedData, error } = await supabase

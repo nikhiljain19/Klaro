@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Lock } from 'lucide-react';
 import { ERROR_STATES } from '../../lib/strings';
 
 export default function UploadArea({ onFileSelected, disabled }) {
@@ -111,6 +111,11 @@ export default function UploadArea({ onFileSelected, disabled }) {
       {error && !selectedFile && (
         <p className="text-xs text-danger mt-2 text-center">{error}</p>
       )}
+
+      <div className="flex items-center justify-center gap-2 mt-3 text-xs text-text-subtle">
+        <Lock className="w-3.5 h-3.5" />
+        Private by design. Your documents are processed securely and never viewed by anyone.
+      </div>
     </div>
   );
 }

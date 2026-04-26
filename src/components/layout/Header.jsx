@@ -1,12 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Plus, LogOut } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { MessageCircle, Plus, LogOut, LayoutList, Users } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useAuth } from '../../lib/AuthContext';
 import { signOut } from '../../lib/supabase';
 
 export default function Header({ onOpenUpload, onSignOut }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   
   const handleSignOut = async () => {
@@ -22,23 +23,45 @@ export default function Header({ onOpenUpload, onSignOut }) {
   return (
     <header className="sticky top-0 z-30 bg-card border-b border-border px-6 py-4 flex justify-between items-center">
       <div 
-        className="flex flex-col cursor-pointer hover:opacity-80 transition-opacity duration-150" 
+        className="flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-150" 
         onClick={() => navigate('/')}
       >
-        <span className="text-base font-semibold text-gray-900 leading-tight">Klaro</span>
-        <span className="text-xs text-text-muted">Your medical timeline</span>
+        <span className="text-xl font-semibold text-gray-900 leading-tight">Klaro</span>
       </div>
-      <div className="flex gap-3">
+      <div className="flex gap-2 sm:gap-3">
+        <button 
+          onClick={() => navigate('/')}
+          className={`flex items-center justify-center rounded-lg w-9 h-9 md:w-auto md:h-auto md:px-4 md:py-2 text-sm font-medium transition-colors
+            ${location.pathname === '/' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-muted border border-border text-gray-700 hover:bg-gray-100'}
+          `}
+        >
+          <LayoutList className="w-4 h-4 md:mr-2" />
+          <span className="hidden md:inline">Timeline</span>
+        </button>
+
         <button 
           onClick={() => navigate('/ask')}
-          className="bg-muted border border-border text-gray-700 rounded-lg w-9 h-9 flex items-center justify-center md:w-auto md:h-auto md:px-4 md:py-2 text-sm font-medium"
+          className={`flex items-center justify-center rounded-lg w-9 h-9 md:w-auto md:h-auto md:px-4 md:py-2 text-sm font-medium transition-colors
+            ${location.pathname === '/ask' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-muted border border-border text-gray-700 hover:bg-gray-100'}
+          `}
         >
           <MessageCircle className="w-4 h-4 md:mr-2" />
           <span className="hidden md:inline">Ask</span>
         </button>
+
+        <button 
+          onClick={() => navigate('/patients')}
+          className={`flex items-center justify-center rounded-lg w-9 h-9 md:w-auto md:h-auto md:px-4 md:py-2 text-sm font-medium transition-colors
+            ${location.pathname === '/patients' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-muted border border-border text-gray-700 hover:bg-gray-100'}
+          `}
+        >
+          <Users className="w-4 h-4 md:mr-2" />
+          <span className="hidden md:inline">Patients</span>
+        </button>
+
         <button 
           onClick={onOpenUpload}
-          className="bg-primary text-white rounded-lg w-9 h-9 flex items-center justify-center md:w-auto md:h-auto md:px-4 md:py-2 text-sm font-medium"
+          className="bg-primary hover:bg-primary/90 text-white rounded-lg w-9 h-9 flex items-center justify-center md:w-auto md:h-auto md:px-4 md:py-2 text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4 md:mr-1" />
           <span className="hidden md:inline">Add Report</span>
