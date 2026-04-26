@@ -78,6 +78,20 @@ export async function getPatients() {
   return data
 }
 
+export async function findPersonByName(name) {
+  const user = await getCurrentUser()
+  const { data, error } = await supabase
+    .from('patients')
+    .select('*')
+    .eq('user_id', user.id)
+  if (error) throw error
+  if (!data || data.length === 0) 
+    return null
+  
+  const normalised = name.trim().toLowerCase()
+  return data.find(p => p.name.trim().toLowerCase() === normalised) || null
+}
+
 export async function savePatient(data) {
   const user = await getCurrentUser()
   const { data: saved, error } = await supabase

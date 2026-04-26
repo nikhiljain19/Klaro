@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { UserCheck, User } from 'lucide-react';
 
 const REPORT_TYPES = {
   'blood_test': 'Blood Test',
@@ -25,7 +26,7 @@ const getFlagStyles = (flag) => {
   }
 };
 
-export default function ExtractionPreview({ extraction, confidence, confidenceReason, onSave, onCancel }) {
+export default function ExtractionPreview({ extraction, confidence, confidenceReason, autoLinkedPerson, newPersonSuggestion, onSave, onCancel, onChangeLink, onCreateSuggested, onSkipSuggestion }) {
   const [formData, setFormData] = useState({
     report_type: extraction?.report_type || 'unknown',
     report_date: extraction?.report_date || '',
@@ -74,8 +75,34 @@ export default function ExtractionPreview({ extraction, confidence, confidenceRe
     return null;
   };
 
+  const renderLinkBanner = () => {
+    if (autoLinkedPerson) {
+      return (
+        <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-4 flex items-center gap-2">
+          <UserCheck className="w-4 h-4 text-success" />
+          <span className="text-sm text-success font-medium">Linked to {autoLinkedPerson.name}</span>
+          <span onClick={onChangeLink} className="text-xs text-primary cursor-pointer ml-auto hover:underline">Change</span>
+        </div>
+      );
+    }
+    if (newPersonSuggestion) {
+      return (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-4 flex items-center">
+          <User className="w-4 h-4 text-blue-600 mr-2" />
+          <span className="text-sm text-blue-800">Save {newPersonSuggestion} as a new person?</span>
+          <div className="ml-auto flex items-center">
+            <button onClick={onCreateSuggested} className="text-xs bg-primary text-white rounded px-2 py-1 hover:bg-primary/90 transition-colors">Add Person</button>
+            <span onClick={onSkipSuggestion} className="text-xs text-text-muted cursor-pointer ml-2 hover:underline">Skip</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
+
   return (
     <div className="w-full flex md:block flex-col max-h-[80vh] overflow-y-auto pr-2">
+      {renderLinkBanner()}
       {renderBanner()}
 
       <div className="mb-6">

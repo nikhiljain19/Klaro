@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Pencil, ExternalLink } from 'lucide-react';
+import { X, Pencil, ExternalLink, Users, UserPlus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { updateReport, getReportFileUrl, deleteReport } from '../../lib/supabase';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { updateReport, getReportFileUrl, deleteReport, getPatients } from '../../lib/supabase';
 import { REPORT_TYPE_COLORS } from '../../lib/constants';
 import { toast } from 'sonner';
 
@@ -12,9 +13,12 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
   const [editData, setEditData] = useState({});
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
-  const [isEditingPatient, setIsEditingPatient] = useState(false);
-  const [patientName, setPatientName] = useState('');
-  const [showPatientSaved, setShowPatientSaved] = useState(false);
+  const [people, setPeople] = useState([]);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+
+  useEffect(() => {
+    getPatients().then(setPeople).catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (report) {
@@ -25,8 +29,6 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
         lab_name: report.lab_name || '',
         doctor_name: report.doctor_name || ''
       });
-      setPatientName(report.extracted_values?.patient_info?.name || '');
-      setIsEditingPatient(false);
       setIsEditing(false);
       setIsDeleteDialogOpen(false);
     }
@@ -36,6 +38,8 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
 
   const accentColor = REPORT_TYPE_COLORS[report.report_type] || REPORT_TYPE_COLORS.unknown;
   const extraction = report.extracted_values || {};
+
+  const linkedPerson = people.find(p => p.id === report.patient_id);
 
   const handleNotesBlur = async () => {
     if (notes === (report.user_notes || '')) return;
@@ -85,34 +89,14 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
     }
   };
 
-  const handlePatientSave = async () => {
-    setIsEditingPatient(false);
-    const originalName = report.extracted_values?.patient_info?.name || '';
-    if (patientName === originalName) return;
-    
+  const handleLinkPerson = async (personId) => {
     try {
-      const newExtracted = { 
-        ...report.extracted_values, 
-        patient_info: { 
-          ...(report.extracted_values?.patient_info || {}), 
-          name: patientName 
-        } 
-      };
-      await updateReport(report.id, { extracted_values: newExtracted });
-      
-      report.extracted_values = newExtracted;
-      setShowPatientSaved(true);
-      setTimeout(() => setShowPatientSaved(false), 1500);
+      await updateReport(report.id, { patient_id: personId });
+      setIsPopoverOpen(false);
       window.dispatchEvent(new CustomEvent('refresh-timeline'));
+      toast.success("Person linked to report");
     } catch (err) {
-      toast.error('Failed to update patient name');
-      setPatientName(originalName);
-    }
-  };
-
-  const handlePatientKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.target.blur();
+      toast.error("Failed to link person");
     }
   };
 
@@ -138,40 +122,61 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
                 Date: {new Date(report.report_date).toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             )}
-            <div className="text-xs text-text-muted mt-0.5 ml-4 flex items-center gap-2">
-              <span>Patient:</span>
-              {isEditingPatient ? (
-                <input
-                  autoFocus
-                  type="text"
-                  value={patientName}
-                  onChange={(e) => setPatientName(e.target.value)}
-                  onBlur={handlePatientSave}
-                  onKeyDown={handlePatientKeyDown}
-                  className="text-sm border-b border-border focus:border-focus outline-none bg-transparent w-40 text-gray-900"
-                />
-              ) : (
-                <span 
-                  onClick={() => setIsEditingPatient(true)}
-                  className={`cursor-pointer ${patientName ? 'text-gray-900 hover:text-primary transition-colors' : 'text-text-subtle hover:text-primary transition-colors'}`}
-                >
-                  {patientName || "Add patient name"}
-                </span>
-              )}
-              {showPatientSaved && <span className="text-[10px] text-success animate-in fade-in transition-opacity duration-300">Saved</span>}
+            
+            <div className="mt-2 ml-4 flex items-center">
+              <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                <PopoverTrigger asChild>
+                  {report.patient_id ? (
+                    <button className="flex items-center bg-primary/10 text-primary border border-primary/20 rounded-full px-3 py-1 text-xs font-medium hover:bg-primary/20 transition-colors">
+                      <Users className="w-3 h-3 mr-1" />
+                      {linkedPerson ? linkedPerson.name : 'Unknown Person'}
+                    </button>
+                  ) : (
+                    <button className="flex items-center text-xs text-primary cursor-pointer border border-primary/20 rounded-full px-3 py-1 hover:bg-primary/5 transition-colors">
+                      <UserPlus className="w-3 h-3 mr-1" />
+                      Link to person
+                    </button>
+                  )}
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-56 p-2 bg-card border border-border shadow-md rounded-lg z-50">
+                  <div className="text-xs font-medium text-text-muted mb-2 px-2">Select a person</div>
+                  <div className="max-h-40 overflow-y-auto">
+                    {people.map(p => (
+                      <button 
+                        key={p.id}
+                        onClick={() => handleLinkPerson(p.id)}
+                        className="w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded flex items-center justify-between group"
+                      >
+                        <span className="truncate text-gray-900 group-hover:text-primary transition-colors">{p.name}</span>
+                        {p.relationship && <span className="text-[10px] text-text-muted bg-muted group-hover:bg-card px-1.5 rounded">{p.relationship}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-border mt-2 pt-2 px-2">
+                    <button 
+                      onClick={() => { setIsPopoverOpen(false); window.location.href = '/people'; }}
+                      className="text-xs text-primary font-medium hover:underline flex items-center"
+                    >
+                      <UserPlus className="w-3 h-3 mr-1" />
+                      Create new person
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
+            
             {extraction.referred_by && (
-              <span className="text-xs text-text-muted mt-0.5 ml-4 block">
+              <span className="text-xs text-text-muted mt-2 ml-4 block">
                 Referred by: {extraction.referred_by}
               </span>
             )}
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 self-start">
             {isEditing ? (
               <>
                 <button onClick={() => setIsEditing(false)} className="text-sm text-text-muted transition-colors font-medium">Cancel</button>
-                <button onClick={handleEditSave} className="bg-primary text-white rounded-md px-3 py-1.5 text-xs font-medium">Save Changes</button>
+                <button onClick={handleEditSave} className="bg-primary text-white rounded-md px-3 py-1.5 text-xs font-medium">Save</button>
               </>
             ) : (
               <>
@@ -313,9 +318,9 @@ export default function ReportDetailPanel({ report, isOpen, onClose, onReportDel
         <div className="sticky bottom-0 bg-card border-t border-border px-5 py-4 shrink-0">
           <button 
             onClick={() => setIsDeleteDialogOpen(true)}
-            className="w-full border border-danger text-danger rounded-lg py-2 text-sm font-medium hover:bg-red-50 bg-white mb-3"
+            className="w-full border border-danger text-danger rounded-lg py-2 text-sm font-medium hover:bg-red-50 bg-white mb-3 flex items-center justify-center gap-2"
           >
-            Delete Report
+             Delete Report
           </button>
           <button 
             onClick={handleViewOriginal}

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import UploadArea from './UploadArea';
 import ExtractionPreview from './ExtractionPreview';
 import { extractReportFromPDF } from '../../lib/gemini';
-import { uploadReportFile, saveReport, supabase, getPatients, savePatient } from '../../lib/supabase';
+import { uploadReportFile, saveReport, supabase, getPatients, savePatient, findPersonByName } from '../../lib/supabase';
 
 export default function UploadModal({ isOpen, onClose, onReportSaved }) {
   const [step, setStep] = useState(1);
@@ -24,6 +24,9 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
   const [newPatientRel, setNewPatientRel] = useState('Self');
   const [savingPatient, setSavingPatient] = useState(false);
 
+  const [autoLinkedPerson, setAutoLinkedPerson] = useState(null);
+  const [newPersonSuggestion, setNewPersonSuggestion] = useState(null);
+
   useEffect(() => {
     if (isOpen) {
       setStep(1);
@@ -37,6 +40,8 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
       setShowNewPatient(false);
       setNewPatientName('');
       setNewPatientRel('Self');
+      setAutoLinkedPerson(null);
+      setNewPersonSuggestion(null);
       
       getPatients().then(setPatients).catch(console.error);
     }
@@ -121,6 +126,17 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
       const result = await extractReportFromPDF(selectedFile);
       clearTimeout(processingTimer);
       
+      const extractedName = result?.patient_info?.name;
+      if (extractedName) {
+        const match = await findPersonByName(extractedName);
+        if (match) {
+          setSelectedPatientId(match.id);
+          setAutoLinkedPerson(match);
+        } else {
+          setNewPersonSuggestion(extractedName);
+        }
+      }
+
       setExtractionResult(result);
       setUploadStage(null);
       setStep(2);
@@ -290,8 +306,19 @@ export default function UploadModal({ isOpen, onClose, onReportSaved }) {
               extraction={extractionResult}
               confidence={extractionResult.extraction_failed ? 'failed' : (extractionResult.extraction_confidence || 'low')}
               confidenceReason={extractionResult.confidence_reason}
+              autoLinkedPerson={autoLinkedPerson}
+              newPersonSuggestion={newPersonSuggestion}
               onSave={handleSave}
               onCancel={onClose}
+              onChangeLink={() => setStep(1.5)}
+              onCreateSuggested={async () => {
+                 const p = await savePatient({ name: newPersonSuggestion, relationship: 'Self', gender: 'Prefer not to say' });
+                 setSelectedPatientId(p.id);
+                 setAutoLinkedPerson(p);
+                 setNewPersonSuggestion(null);
+                 toast.success('Person created and linked');
+              }}
+              onSkipSuggestion={() => setNewPersonSuggestion(null)}
             />
           )}
         </div>

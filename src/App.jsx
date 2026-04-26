@@ -7,7 +7,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import Patients from './pages/Patients';
+import People from './pages/People';
 import { Toaster } from '@/components/ui/sonner';
 import UploadModal from './components/upload/UploadModal';
 import { getReports } from './lib/supabase';
@@ -55,7 +55,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<ProtectedRoute><Timeline reports={reports} isLoading={isLoading} fetchReports={fetchReports} onReportDeleted={handleReportDeleted} /></ProtectedRoute>} />
           <Route path="/ask" element={<ProtectedRoute><Ask /></ProtectedRoute>} />
-          <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
+          <Route path="/people" element={<ProtectedRoute><People /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

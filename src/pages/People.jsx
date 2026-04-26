@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, User, Edit2, Trash2 } from 'lucide-react';
+import { UserPlus, User, Edit2, Trash2, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { getPatients, savePatient, updatePatient, deletePatient } from '../lib/supabase';
+import { getPatients, savePatient, updatePatient, deletePatient, getReports, updateReport } from '../lib/supabase';
 import { toast } from 'sonner';
 
-export default function Patients() {
-  const [patients, setPatients] = useState([]);
+export default function People() {
+  const [people, setPeople] = useState([]);
+  const [unlinkedMatches, setUnlinkedMatches] = useState([]);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPatient, setEditingPatient] = useState(null);
+  const [editingPerson, setEditingPerson] = useState(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -18,25 +21,40 @@ export default function Patients() {
     notes: ''
   });
 
-  const fetchPatients = async () => {
+  const fetchPeople = async () => {
     setLoading(true);
     try {
       const data = await getPatients();
-      setPatients(data || []);
+      setPeople(data || []);
+
+      const reps = await getReports();
+      const unlinked = reps.filter(r => !r.patient_id && r.extracted_values?.patient_info?.name);
+      
+      const matches = [];
+      const dataSafe = data || [];
+      for(const r of unlinked) {
+        const extractedName = r.extracted_values.patient_info.name.trim().toLowerCase();
+        const match = dataSafe.find(p => p.name.trim().toLowerCase() === extractedName);
+        if (match) {
+          matches.push({ report: r, person: match });
+        }
+      }
+      setUnlinkedMatches(matches);
+
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load patients');
+      toast.error('Failed to load people');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPatients();
+    fetchPeople();
   }, []);
 
   const openFormForNew = () => {
-    setEditingPatient(null);
+    setEditingPerson(null);
     setFormData({
       name: '',
       date_of_birth: '',
@@ -47,14 +65,14 @@ export default function Patients() {
     setIsModalOpen(true);
   };
 
-  const openFormForEdit = (patient) => {
-    setEditingPatient(patient);
+  const openFormForEdit = (person) => {
+    setEditingPerson(person);
     setFormData({
-      name: patient.name || '',
-      date_of_birth: patient.date_of_birth || '',
-      gender: patient.gender || 'Prefer not to say',
-      relationship: patient.relationship || 'Self',
-      notes: patient.notes || ''
+      name: person.name || '',
+      date_of_birth: person.date_of_birth || '',
+      gender: person.gender || 'Prefer not to say',
+      relationship: person.relationship || 'Self',
+      notes: person.notes || ''
     });
     setIsModalOpen(true);
   };
@@ -66,35 +84,51 @@ export default function Patients() {
     }
 
     try {
-      if (editingPatient) {
-        await updatePatient(editingPatient.id, formData);
-        toast.success('Patient updated');
+      if (editingPerson) {
+        await updatePatient(editingPerson.id, formData);
+        toast.success('Person updated');
       } else {
         await savePatient(formData);
-        toast.success('Patient added');
+        toast.success('Person added');
       }
       setIsModalOpen(false);
-      fetchPatients();
+      fetchPeople();
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save patient');
+      toast.error('Failed to save person');
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("This will not delete their reports, only the patient profile. Are you sure?")) {
+    if (!window.confirm("This will not delete their reports, only the person profile. Are you sure?")) {
       return;
     }
     
     try {
       await deletePatient(id);
-      toast.success('Patient deleted');
-      fetchPatients();
+      toast.success('Person deleted');
+      fetchPeople();
     } catch (err) {
       console.error(err);
-      toast.error('Failed to delete patient');
+      toast.error('Failed to delete person');
     }
   };
+
+  const handleConfirmLink = async (reportId, personId) => {
+    try {
+      await updateReport(reportId, { patient_id: personId });
+      setUnlinkedMatches(prev => prev.filter(m => m.report.id !== reportId));
+      if (unlinkedMatches.length <= 1) setShowReviewModal(false);
+      toast.success("Report linked");
+    } catch(err) { 
+      toast.error("Failed to link report");
+    }
+  }
+  
+  const handleSkipLink = (reportId) => {
+    setUnlinkedMatches(prev => prev.filter(m => m.report.id !== reportId));
+    if (unlinkedMatches.length <= 1) setShowReviewModal(false);
+  }
 
   const calculateAge = (dob) => {
     if (!dob) return null;
@@ -112,29 +146,40 @@ export default function Patients() {
     <div className="max-w-7xl mx-auto px-6 py-8">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Patients</h1>
-          <p className="text-sm text-text-muted mt-1">Manage patient profiles linked to your reports</p>
+          <h1 className="text-2xl font-semibold text-gray-900">People</h1>
+          <p className="text-sm text-text-muted mt-1">Manage profiles for everyone whose reports you track</p>
         </div>
         <button
           onClick={openFormForNew}
           className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 text-sm font-medium flex items-center transition-colors"
         >
           <UserPlus className="w-4 h-4 mr-2" />
-          Add Patient
+          Add Person
         </button>
       </div>
 
+      {unlinkedMatches.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex justify-between items-center">
+          <div className="text-amber-800 text-sm font-medium">
+            {unlinkedMatches.length} report{unlinkedMatches.length > 1 ? 's' : ''} could be automatically linked to people. Review and confirm?
+          </div>
+          <button onClick={() => setShowReviewModal(true)} className="bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+            Review
+          </button>
+        </div>
+      )}
+
       {loading ? (
-        <div className="text-center py-12 text-text-muted animate-pulse">Loading patients...</div>
-      ) : patients.length === 0 ? (
+        <div className="text-center py-12 text-text-muted animate-pulse">Loading people...</div>
+      ) : people.length === 0 ? (
         <div className="text-center py-20 bg-card rounded-xl border border-border border-dashed">
           <User className="w-12 h-12 text-text-subtle mx-auto mb-4 opacity-50" />
-          <h3 className="text-lg font-medium text-gray-900 mb-1">No patients yet</h3>
-          <p className="text-sm text-text-muted">Add your first patient profile to organize reports.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-1">No people yet</h3>
+          <p className="text-sm text-text-muted">Add your first person profile to organize reports.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {patients.map(p => (
+          {people.map(p => (
             <div key={p.id} className="bg-card rounded-xl border border-border p-5 hover:shadow-md transition-shadow group relative">
               
               <div className="absolute top-4 right-4 flex opacity-0 group-hover:opacity-100 transition-opacity gap-3">
@@ -177,15 +222,47 @@ export default function Patients() {
         </div>
       )}
 
+      {/* Review Modal */}
+      <Dialog open={showReviewModal} onOpenChange={setShowReviewModal}>
+        <DialogContent className="sm:max-w-lg bg-card border border-border shadow-xl rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Review Suggested Links</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto space-y-4 py-4">
+            {unlinkedMatches.map(m => (
+              <div key={m.report.id} className="border border-border rounded-lg p-4 bg-muted/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 max-w-[50%]">
+                    <span className="text-sm font-medium text-gray-900 truncate">{m.report.file_name}</span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-text-muted shrink-0" />
+                  <div className="flex items-center gap-2 max-w-[40%] bg-primary/10 px-2 py-1 rounded text-primary text-sm font-medium truncate">
+                    <User className="w-3.5 h-3.5 shrink-0" /> {m.person.name}
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-border">
+                  <button onClick={() => handleSkipLink(m.report.id)} className="text-xs font-medium text-text-muted px-3 py-1.5 hover:text-gray-900 transition-colors">Skip</button>
+                  <button onClick={() => handleConfirmLink(m.report.id, m.person.id)} className="text-xs font-medium bg-primary text-white px-4 py-1.5 rounded-md hover:bg-primary/90 transition-colors">Confirm Link</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <button onClick={() => setShowReviewModal(false)} className="text-sm font-medium text-text-muted hover:text-gray-900 px-4 py-2 transition-colors">Done</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-md bg-card border border-border shadow-xl rounded-xl">
           <DialogHeader>
-            <DialogTitle>{editingPatient ? 'Edit Patient' : 'Add New Patient'}</DialogTitle>
+            <DialogTitle>{editingPerson ? 'Edit Person' : 'Add New Person'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
               <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">Name *</label>
-              <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:border-focus focus:ring-1 focus:ring-primary focus:outline-none bg-white" placeholder="Patient's full name" />
+              <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:border-focus focus:ring-1 focus:ring-primary focus:outline-none bg-white" placeholder="Person's full name" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -216,7 +293,7 @@ export default function Patients() {
             </div>
             <div>
               <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">Notes</label>
-              <textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} rows={3} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:border-focus focus:ring-1 focus:ring-primary focus:outline-none bg-white resize-none" placeholder="Any relevant context about this patient..." />
+              <textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} rows={3} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:border-focus focus:ring-1 focus:ring-primary focus:outline-none bg-white resize-none" placeholder="Any relevant context about this person..." />
             </div>
           </div>
           <DialogFooter>

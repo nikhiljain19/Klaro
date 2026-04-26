@@ -48,17 +48,6 @@ export default function Header({ onOpenUpload, onSignOut }) {
           <MessageCircle className="w-4 h-4 md:mr-2" />
           <span className="hidden md:inline">Ask</span>
         </button>
-
-        <button 
-          onClick={() => navigate('/patients')}
-          className={`flex items-center justify-center rounded-lg w-9 h-9 md:w-auto md:h-auto md:px-4 md:py-2 text-sm font-medium transition-colors
-            ${location.pathname === '/patients' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-muted border border-border text-gray-700 hover:bg-gray-100'}
-          `}
-        >
-          <Users className="w-4 h-4 md:mr-2" />
-          <span className="hidden md:inline">Patients</span>
-        </button>
-
         <button 
           onClick={onOpenUpload}
           className="bg-primary hover:bg-primary/90 text-white rounded-lg w-9 h-9 flex items-center justify-center md:w-auto md:h-auto md:px-4 md:py-2 text-sm font-medium transition-colors"
@@ -75,6 +64,16 @@ export default function Header({ onOpenUpload, onSignOut }) {
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-sm rounded-lg mt-1 min-w-[150px]">
+              <div className="px-3 py-2 border-b border-border mb-1 shrink-0 truncate text-xs text-text-muted">
+                {user.email}
+              </div>
+              <DropdownMenuItem 
+                onClick={() => navigate('/people')}
+                className="text-sm px-3 py-2 cursor-pointer hover:bg-muted focus:bg-muted text-gray-700 focus:text-gray-900 flex items-center"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                People
+              </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={handleSignOut}
                 className="text-sm px-3 py-2 cursor-pointer hover:bg-muted focus:bg-muted text-danger focus:text-danger flex items-center"
